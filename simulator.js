@@ -343,34 +343,36 @@ class WeldingSimulator {
                 this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
                 this.arcStateBadge.className = "badge badge-active";
             }
+        } else if (this.state === 'PAUSED') {
+            // Wznawiamy gdy palec przyłożony w pobliżu jeziorka (2x tolerancja)
+            if (dist <= this.toleranceRadius * 2) {
+                this.state = 'WELDING';
+                this.isArcActive = true;
+                window.weldingAudio.playIgnite();
+                window.weldingAudio.startArcSound();
+                this.updateHUD("Łuk wznowiony! Spawaj dalej", "active");
+                this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
+                this.arcStateBadge.className = "badge badge-active";
+            }
         }
     }
 
     handlePointerUp() {
-        if (this.state === 'WELDING' && this.isArcActive) {
-            this.setArcActive(false);
+        if (this.state === 'WELDING') {
+            this.pauseSimulation("ZERWANIE ŁUKU! Przyłóż palec", true);
         }
     }
 
-    setArcActive(active) {
-        if (this.isArcActive === active) return;
-        this.isArcActive = active;
-
-        if (active) {
-            window.weldingAudio.playIgnite();
-            window.weldingAudio.startArcSound();
-            this.updateHUD("Łuk wznowiony! Spawaj dalej", "active");
-            this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
-            this.arcStateBadge.className = "badge badge-active";
-        } else {
-            this.stats.arcBreaks++;
-            window.weldingAudio.playArcBreak();
-            window.weldingAudio.stopArcSound();
-            // Ultra-zwięzły komunikat 4-słowowy, gwarantowany 1-liniowy
-            this.updateHUD("ZERWANIE ŁUKU! Przyłóż palec", "error");
-            this.arcStateBadge.innerText = "ŁUK ZERWANY!";
-            this.arcStateBadge.className = "badge badge-danger";
-        }
+    pauseSimulation(msg, countBreak) {
+        if (this.state !== 'WELDING') return;
+        this.state = 'PAUSED';
+        this.isArcActive = false;
+        if (countBreak) this.stats.arcBreaks++;
+        window.weldingAudio.playArcBreak();
+        window.weldingAudio.stopArcSound();
+        this.updateHUD(msg, "error");
+        this.arcStateBadge.innerText = "ŁUK ZERWANY!";
+        this.arcStateBadge.className = "badge badge-danger";
     }
 
     updateHUD(msg, type) {
@@ -394,22 +396,33 @@ class WeldingSimulator {
         if (this.state === 'WELDING') {
             this.updateWeldingLogic();
         }
+        // Stan PAUSED: canvas się odświeża (jeziorko widoczne, mrożone w miejscu), logika stoi
 
         this.animationId = requestAnimationFrame(() => this.animate());
     }
 
     updateWeldingLogic() {
         const dist = Math.hypot(this.userPos.x - this.targetX, this.userPos.y - this.targetY);
-        const isInTolerance = (this.isPointerDown && dist <= this.toleranceRadius);
+        const tooFar = dist > this.toleranceRadius * 2;
 
-        if (isInTolerance) {
-            if (!this.isArcActive) {
-                this.setArcActive(true);
-            }
-        } else {
-            if (this.isArcActive) {
-                this.setArcActive(false);
-            }
+        // Pauza gdy palec podniesiony lub zbyt daleko od jeziorka
+        if (!this.isPointerDown) {
+            this.pauseSimulation("ZERWANIE ŁUKU! Przyłóż palec", true);
+            return;
+        }
+        if (tooFar) {
+            this.pauseSimulation("Za daleko! Wróć do jeziorka", true);
+            return;
+        }
+
+        const isInTolerance = (dist <= this.toleranceRadius);
+
+        // Drobne wyjście poza tolerancję (ale nie pauza) – sygnalizacja wizualna/audio
+        if (!isInTolerance && this.isArcActive) {
+            window.weldingAudio.setArcQuality(false);
+        } else if (isInTolerance && !this.isArcActive) {
+            // Palec wrócił do strefy po drobnym odchyleniu – wznów łuk bez pauzy
+            this.isArcActive = true;
         }
 
         this.stats.totalFrames++;
@@ -422,8 +435,8 @@ class WeldingSimulator {
         }
 
         this.stats.userTrail.push({
-            x: this.isPointerDown ? this.userPos.x : -100,
-            y: this.isPointerDown ? this.userPos.y : -100,
+            x: this.userPos.x,
+            y: this.userPos.y,
             accurate: this.isArcActive && isInTolerance
         });
         this.stats.idealTrail.push({
@@ -563,6 +576,7 @@ class WeldingSimulator {
         }
 
         const isWaiting = (this.state === 'WAITING_FOR_IGNITION');
+        const isPaused = (this.state === 'PAUSED');
         const isArcOn = this.isArcActive;
 
         if (isArcOn) {
@@ -591,6 +605,18 @@ class WeldingSimulator {
             }
         }
 
+        // Pulsujący okrąg "wróć tutaj" w stanie PAUSED
+        if (isPaused) {
+            const pulse = 1 + 0.25 * Math.sin(Date.now() / 200);
+            ctx.beginPath();
+            ctx.arc(this.targetX, this.targetY, this.toleranceRadius * 2 * pulse, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 59, 48, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
         ctx.beginPath();
         ctx.arc(this.targetX, this.targetY, this.poolRadius, 0, Math.PI * 2);
         if (isWaiting) {
@@ -603,6 +629,11 @@ class WeldingSimulator {
             ctx.fillStyle = '#ff9100';
             ctx.shadowColor = '#ff3d00';
             ctx.shadowBlur = 20;
+        } else if (isPaused) {
+            const blink = 0.5 + 0.5 * Math.sin(Date.now() / 180);
+            ctx.fillStyle = `rgba(120, 30, 30, ${0.5 + blink * 0.4})`;
+            ctx.shadowColor = '#ff3b30';
+            ctx.shadowBlur = 8 + blink * 10;
         } else {
             ctx.fillStyle = '#442222';
             ctx.shadowColor = '#ff1744';
@@ -613,7 +644,7 @@ class WeldingSimulator {
 
         ctx.beginPath();
         ctx.arc(this.targetX, this.targetY, this.toleranceRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = isArcOn ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 23, 68, 0.6)';
+        ctx.strokeStyle = isArcOn ? 'rgba(255, 255, 255, 0.25)' : isPaused ? 'rgba(255, 59, 48, 0.8)' : 'rgba(255, 23, 68, 0.6)';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
         ctx.stroke();
