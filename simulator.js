@@ -1,7 +1,7 @@
 /**
  * Simulator Engine dla Treningu Spawania MIG/MAG
  * Obsługuje generowanie trajektorii, specyfikę pozycji (PA, PF, PB),
- * zajarzenie łuku, PŁYNNY RUCH BEZ ZATRZYMYWANIA oraz stały rozmiar interfejsu (brak przesuwania płótna).
+ * zajarzenie łuku, PŁYNNY RUCH BEZ ZATRZYMYWANIA oraz rygorystycznie zablokowany rozmiar komunikatów statusu (1 linia, brak zawijania).
  */
 
 class WeldingSimulator {
@@ -339,7 +339,7 @@ class WeldingSimulator {
                 this.isArcActive = true;
                 window.weldingAudio.playIgnite();
                 window.weldingAudio.startArcSound();
-                this.updateHUD("Spawaj! Prowadź rękę w rytmie metronomu", "active");
+                this.updateHUD("Spawaj! Prowadź rękę równo w rytmie", "active");
                 this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
                 this.arcStateBadge.className = "badge badge-active";
             }
@@ -348,11 +348,11 @@ class WeldingSimulator {
 
     handlePointerUp() {
         if (this.state === 'WELDING' && this.isArcActive) {
-            this.setArcActive(false, "Oderwano palec");
+            this.setArcActive(false);
         }
     }
 
-    setArcActive(active, reason = "") {
+    setArcActive(active) {
         if (this.isArcActive === active) return;
         this.isArcActive = active;
 
@@ -366,8 +366,8 @@ class WeldingSimulator {
             this.stats.arcBreaks++;
             window.weldingAudio.playArcBreak();
             window.weldingAudio.stopArcSound();
-            // Zwięzły komunikat mieszczący się w 1 linii
-            this.updateHUD("ZERWANIE ŁUKU! Przyłóż palec do jeziorka", "error");
+            // Ultra-zwięzły komunikat 4-słowowy, gwarantowany 1-liniowy
+            this.updateHUD("ZERWANIE ŁUKU! Przyłóż palec", "error");
             this.arcStateBadge.innerText = "ŁUK ZERWANY!";
             this.arcStateBadge.className = "badge badge-danger";
         }
@@ -408,8 +408,7 @@ class WeldingSimulator {
             }
         } else {
             if (this.isArcActive) {
-                const reason = !this.isPointerDown ? "Oderwano palec" : "Zeszło z toru";
-                this.setArcActive(false, reason);
+                this.setArcActive(false);
             }
         }
 
