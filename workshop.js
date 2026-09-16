@@ -1,7 +1,7 @@
 /**
  * Workshop Audio Assistant (Tryb Warsztatowy pod Przyłbicę)
  * Pozwala kursantowi trenować na prawdziwym stanowisku spawalniczym,
- * słuchając precyzyjnego, ultra-wyrazistego rytmu w słuchawkach pod maską.
+ * słuchając precyzyjnego, przestrzennego (STEREO LEWO / PRAWO) rytmu w słuchawkach pod maską.
  */
 
 class WorkshopAssistant {
@@ -90,7 +90,6 @@ class WorkshopAssistant {
     }
 
     async toggleAssistant() {
-        // Inicjalizacja AudioContext w odpowiedzi na gest użytkownika
         window.weldingAudio.init();
 
         if (this.isRunning) {
@@ -109,21 +108,17 @@ class WorkshopAssistant {
         this.startBtn.innerText = "ZATRZYMAJ ASYSTENTA";
         this.startBtn.classList.add('running');
 
-        // Włączenie dźwięku łuku jeśli wybrano tryb łączony
         if (this.soundMode === 'arc_beeps') {
             window.weldingAudio.startArcSound();
         }
 
-        // Aktywacja Wake Lock (podtrzymanie ekranu)
         this.requestWakeLock();
 
-        // Start licznika czasu spoiny
         this.timerInterval = setInterval(() => {
             this.timerSeconds++;
             this.updateTimerDisplay();
         }, 1000);
 
-        // Uruchomienie pętli metronomu
         this.tick();
     }
 
@@ -149,43 +144,40 @@ class WorkshopAssistant {
     tick() {
         if (!this.isRunning) return;
 
-        // Czas pełnego cyklu (lewo -> środek -> prawo -> środek)
         const fullCycleMs = (60 / this.bpm) * 1000;
         let stepDurationMs;
 
         if (this.position === 'PF') {
-            // PF (Pion): Krawędzie (36% czasu), Środek (14% czasu)
             if (this.step === 0 || this.step === 2) {
                 stepDurationMs = fullCycleMs * 0.36;
             } else {
                 stepDurationMs = fullCycleMs * 0.14;
             }
         } else {
-            // PA (Podolna): Równe 25% dla każdego z 4 kroków
             stepDurationMs = fullCycleMs * 0.25;
         }
 
         this.clearVisualIndicators();
 
         if (this.step === 0) {
-            // Lewa krawędź
+            // Lewa krawędź -> LEWA SŁUCHAWKA 🎧
             window.weldingAudio.playWorkshopPulse('edge', false);
-            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge');
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge', false);
             this.highlightVisual(this.visualLeft);
             this.vibrate([45]);
         } else if (this.step === 1) {
-            // Środek w prawo
+            // Środek w prawo -> CENTRUM 🎧
             window.weldingAudio.playWorkshopPulse('center');
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
         } else if (this.step === 2) {
-            // Prawa krawędź
+            // Prawa krawędź -> PRAWA SŁUCHAWKA 🎧
             window.weldingAudio.playWorkshopPulse('edge', true);
-            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge');
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge', true);
             this.highlightVisual(this.visualRight);
             this.vibrate([45]);
         } else if (this.step === 3) {
-            // Środek w lewo
+            // Środek w lewo -> CENTRUM 🎧
             window.weldingAudio.playWorkshopPulse('center');
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
