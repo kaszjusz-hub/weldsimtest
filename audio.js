@@ -1,14 +1,13 @@
 /**
  * Audio Engine dla Symulatora Spawania MIG/MAG (WeldMaster 2D)
- * Wykorzystuje Web Audio API z przestrzennym panoramowaniem stereo (StereoPannerNode).
- * Wsłuchując się w słuchawki, spawacz słyszy impuls lewej krawędzi w lewym uchu (-1.0),
- * a prawej krawędzi w prawym uchu (+1.0)!
+ * Wykorzystuje Web Audio API z opcjonalnym przestrzennym panoramowaniem stereo (Dźwięk 3D / Stereo).
  */
 
 class WeldingAudioEngine {
     constructor() {
         this.ctx = null;
         this.isMuted = false;
+        this.is3dEnabled = true; // Flaga trybu Dźwięku 3D (Stereo Lewo/Prawo)
 
         // Elementy dźwięku łuku
         this.arcGainNode = null;
@@ -34,18 +33,26 @@ class WeldingAudioEngine {
         }
     }
 
-    // Dodanie przestrzennego węzła panoramy stereo (Left -1.0, Center 0.0, Right 1.0)
+    set3dMode(enabled) {
+        this.is3dEnabled = !!enabled;
+        if (!this.is3dEnabled && this.arcPannerNode && this.arcPannerNode.pan) {
+            try {
+                this.arcPannerNode.pan.setValueAtTime(0.0, this.ctx ? this.ctx.currentTime : 0);
+            } catch (e) {}
+        }
+    }
+
     createPannerNode(panValue = 0) {
         if (!this.ctx) return null;
         if (this.ctx.createStereoPanner) {
             const panner = this.ctx.createStereoPanner();
-            panner.pan.setValueAtTime(panValue, this.ctx.currentTime);
+            const actualPan = this.is3dEnabled ? panValue : 0.0;
+            panner.pan.setValueAtTime(actualPan, this.ctx.currentTime);
             return panner;
         }
-        return null; // Ogólny fallback dla bardzo starych urządzeń
+        return null;
     }
 
-    // Bezpieczne generowanie sygnału tonowego metronomu z panoramą stereo
     playTone(freq, duration, type = 'sine', volume = 0.5, pan = 0) {
         this.init();
         if (!this.ctx || this.isMuted) return;
@@ -54,7 +61,8 @@ class WeldingAudioEngine {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();
-            const panner = this.createPannerNode(pan);
+            const actualPan = this.is3dEnabled ? pan : 0.0;
+            const panner = this.createPannerNode(actualPan);
 
             osc.type = type;
             osc.frequency.setValueAtTime(freq, now);
@@ -63,7 +71,6 @@ class WeldingAudioEngine {
             gain.gain.setValueAtTime(finalVol, now);
             gain.gain.linearRampToValueAtTime(0.001, now + duration);
 
-            // Połączenie: Oscylator -> Wzmocnienie -> Panorama Stereo -> Wyjście
             if (panner) {
                 osc.connect(gain);
                 gain.connect(panner);
@@ -80,10 +87,9 @@ class WeldingAudioEngine {
         }
     }
 
-    // Dźwięk metronomu dla krawędzi spoiny (Left / Right Hold)
     playEdgeTone(isRight = false) {
         const freq = isRight ? 960 : 800;
-        const pan = isRight ? 1.0 : -1.0; // 100% Prawa słuchawka lub 100% Lewa słuchawka
+        const pan = isRight ? 1.0 : -1.0;
 
         this.playTone(freq, 0.1, 'square', 0.6, pan);
         setTimeout(() => {
@@ -91,12 +97,10 @@ class WeldingAudioEngine {
         }, 30);
     }
 
-    // Dźwięk metronomu dla przeskoku przez środek (Centrum)
     playCenterTone() {
         this.playTone(480, 0.05, 'triangle', 0.35, 0.0);
     }
 
-    // Przestrzenny impuls metronomu dla Trybu Warsztatowego
     playWorkshopPulse(type = 'edge', isRight = false) {
         this.init();
         if (!this.ctx || this.isMuted) return;
@@ -105,8 +109,7 @@ class WeldingAudioEngine {
             const now = this.ctx.currentTime;
 
             if (type === 'edge') {
-                // Lewa krawędź -> LEWA SŁUCHAWKA (-1.0), Prawa krawędź -> PRAWA SŁUCHAWKA (+1.0)
-                const panVal = isRight ? 1.0 : -1.0;
+                const panVal = this.is3dEnabled ? (isRight ? 1.0 : -1.0) : 0.0;
                 const freq1 = isRight ? 1080 : 820;
                 const freq2 = isRight ? 1450 : 1100;
 
@@ -140,7 +143,6 @@ class WeldingAudioEngine {
                 osc1.stop(now + 0.12);
                 osc2.stop(now + 0.12);
             } else {
-                // Środek -> ŚRODEK (0.0)
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 const panner = this.createPannerNode(0.0);
@@ -168,7 +170,6 @@ class WeldingAudioEngine {
         }
     }
 
-    // Efekty zajarzenia i zerwania łuku
     playIgnite() {
         this.playTone(320, 0.08, 'sawtooth', 0.7, 0);
         setTimeout(() => this.playTone(640, 0.06, 'square', 0.5, 0), 40);
@@ -178,7 +179,6 @@ class WeldingAudioEngine {
         this.playTone(180, 0.18, 'sawtooth', 0.8, 0);
     }
 
-    // Synteza smażenia łuku MIG/MAG
     startArcSound() {
         this.init();
         if (!this.ctx || this.isMuted || this.isArcPlaying) return;
@@ -243,7 +243,6 @@ class WeldingAudioEngine {
         }
     }
 
-    // Dynamiczne przemieszczanie dźwięku łuku w przestrzeni stereo
     modulateArcForStep(stepType, isRight = false) {
         if (!this.isArcPlaying || !this.ctx || !this.arcFilterNode) return;
         const now = this.ctx.currentTime;
@@ -254,9 +253,8 @@ class WeldingAudioEngine {
                 if (this.arcPulseOsc) this.arcPulseOsc.frequency.setTargetAtTime(110, now, 0.04);
                 if (this.arcGainNode) this.arcGainNode.gain.setTargetAtTime(this.arcVolume * 1.2, now, 0.04);
 
-                // Przestrzenny obrót panoramy łuku
                 if (this.arcPannerNode && this.arcPannerNode.pan) {
-                    const targetPan = isRight ? 0.7 : -0.7;
+                    const targetPan = this.is3dEnabled ? (isRight ? 0.7 : -0.7) : 0.0;
                     this.arcPannerNode.pan.setTargetAtTime(targetPan, now, 0.04);
                 }
             } else {
