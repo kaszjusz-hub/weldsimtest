@@ -1,7 +1,7 @@
 /**
  * Simulator Engine dla Treningu Spawania MIG/MAG
  * Obsługuje generowanie trajektorii, specyfikę pozycji (PA, PF, PB),
- * zajarzenie łuku, PŁYNNY RUCH BEZ ZATRZYMYWANIA przy zerwaniu łuku oraz szczegółową analizę spoiny.
+ * zajarzenie łuku, PŁYNNY RUCH BEZ ZATRZYMYWANIA oraz stały rozmiar interfejsu (brak przesuwania płótna).
  */
 
 class WeldingSimulator {
@@ -11,26 +11,22 @@ class WeldingSimulator {
         this.evalCanvas = null;
         this.evalCtx = null;
 
-        // Ekrany
         this.configScreen = null;
         this.simScreen = null;
         this.reportModal = null;
 
-        // Stan symulacji
-        this.state = 'IDLE'; // IDLE, WAITING_FOR_IGNITION, WELDING, COMPLETED
-        this.isArcActive = false; // Czy łuk w danej chwili się jarzy (czy palec trzyma strefę)
+        this.state = 'IDLE';
+        this.isArcActive = false;
         this.animationId = null;
 
-        // Konfiguracja
         this.config = {
             position: 'PF',
             pattern: 'zigzag',
-            weldWidth: 20, // mm
-            wireDiameter: 1.0, // mm
+            weldWidth: 20,
+            wireDiameter: 1.0,
             speedMultiplier: 1.0
         };
 
-        // Fizyka ruchu
         this.points = [];
         this.currentPointIdx = 0;
         this.targetX = 0;
@@ -41,11 +37,9 @@ class WeldingSimulator {
         this.poolRadius = 12;
         this.toleranceRadius = 24;
 
-        // Pozycja użytkownika
         this.userPos = { x: -100, y: -100 };
         this.isPointerDown = false;
 
-        // Statystyki i metryki
         this.stats = {
             totalFrames: 0,
             onTargetFrames: 0,
@@ -57,7 +51,6 @@ class WeldingSimulator {
             idealTrail: []
         };
 
-        // UI elementy
         this.statusText = null;
         this.accuracyBadge = null;
         this.arcStateBadge = null;
@@ -141,7 +134,6 @@ class WeldingSimulator {
             this.configScreen.style.display = 'block';
         });
 
-        // Touch & Mouse Pointer tracking
         const updateCoords = (e) => {
             e.preventDefault();
             const rect = this.canvas.getBoundingClientRect();
@@ -258,7 +250,6 @@ class WeldingSimulator {
         this.simScreen.style.display = 'block';
         if (this.reportModal) this.reportModal.classList.remove('active');
 
-        // Ustawienia fizyki
         this.poolRadius = Math.round(this.config.wireDiameter * 11);
         this.toleranceRadius = Math.round(this.poolRadius * 1.8);
 
@@ -275,7 +266,6 @@ class WeldingSimulator {
 
         this.generatePath();
 
-        // Reset stanu
         this.state = 'WAITING_FOR_IGNITION';
         this.isArcActive = false;
         this.currentPointIdx = 0;
@@ -296,7 +286,7 @@ class WeldingSimulator {
             idealTrail: []
         };
 
-        this.updateHUD("Dotknij żółtego punktu na dole, aby zajarzyć łuk!", "waiting");
+        this.updateHUD("Dotknij punktu na dole, aby zajarzyć łuk!", "waiting");
         this.arcStateBadge.innerText = "Łuk wygaszony";
         this.arcStateBadge.className = "badge badge-off";
         this.accuracyBadge.innerText = "Precyzja: 100%";
@@ -345,7 +335,6 @@ class WeldingSimulator {
 
         if (this.state === 'WAITING_FOR_IGNITION') {
             if (dist <= this.toleranceRadius * 1.5) {
-                // Pierwsze zajarzenie łuku
                 this.state = 'WELDING';
                 this.isArcActive = true;
                 window.weldingAudio.playIgnite();
@@ -358,9 +347,8 @@ class WeldingSimulator {
     }
 
     handlePointerUp() {
-        // Po zajarzeniu oderwanie palca NIE zatrzymuje symulacji, ale gasi łuk
         if (this.state === 'WELDING' && this.isArcActive) {
-            this.setArcActive(false, "Oderwano palec!");
+            this.setArcActive(false, "Oderwano palec");
         }
     }
 
@@ -369,18 +357,17 @@ class WeldingSimulator {
         this.isArcActive = active;
 
         if (active) {
-            // Wznowienie łuku w biegu
             window.weldingAudio.playIgnite();
             window.weldingAudio.startArcSound();
             this.updateHUD("Łuk wznowiony! Spawaj dalej", "active");
             this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
             this.arcStateBadge.className = "badge badge-active";
         } else {
-            // Zerwanie łuku w biegu
             this.stats.arcBreaks++;
             window.weldingAudio.playArcBreak();
             window.weldingAudio.stopArcSound();
-            this.updateHUD(`ZERWANIE ŁUKU! (${reason}) Przyłóż palec do ruchomego jeziorka`, "error");
+            // Zwięzły komunikat mieszczący się w 1 linii
+            this.updateHUD("ZERWANIE ŁUKU! Przyłóż palec do jeziorka", "error");
             this.arcStateBadge.innerText = "ŁUK ZERWANY!";
             this.arcStateBadge.className = "badge badge-danger";
         }
@@ -412,11 +399,9 @@ class WeldingSimulator {
     }
 
     updateWeldingLogic() {
-        // Obliczenie czy kursor trzyma strefę łuku
         const dist = Math.hypot(this.userPos.x - this.targetX, this.userPos.y - this.targetY);
         const isInTolerance = (this.isPointerDown && dist <= this.toleranceRadius);
 
-        // Automatyczne zajarzenie / zerwanie w biegu w zależności od pozycji palca
         if (isInTolerance) {
             if (!this.isArcActive) {
                 this.setArcActive(true);
@@ -428,7 +413,6 @@ class WeldingSimulator {
             }
         }
 
-        // Zliczanie klatek (zawsze liczy całkowity czas, aby tempo nie ulegało zaburzeniu)
         this.stats.totalFrames++;
 
         if (this.isArcActive && isInTolerance) {
@@ -438,7 +422,6 @@ class WeldingSimulator {
             window.weldingAudio.setArcQuality(false);
         }
 
-        // Zapis trajektorii
         this.stats.userTrail.push({
             x: this.isPointerDown ? this.userPos.x : -100,
             y: this.isPointerDown ? this.userPos.y : -100,
@@ -449,11 +432,9 @@ class WeldingSimulator {
             y: this.targetY
         });
 
-        // Wskaźnik precyzji na żywo
         const acc = Math.round((this.stats.onTargetFrames / this.stats.totalFrames) * 100);
         this.accuracyBadge.innerText = `Precyzja: ${acc}%`;
 
-        // PŁYNNY POSUW JEZIORKA (Brak zatrzymywania! Ruch trwa nieprzerwanie)
         const currentP = this.points[this.currentPointIdx];
 
         if (this.edgeHoldTimer > 0) {
@@ -496,7 +477,6 @@ class WeldingSimulator {
                 this.targetY += (dy / distance) * moveAmount;
             }
         } else {
-            // Koniec ścieżki - symulacja ukończona nieprzerwanie!
             this.completeSimulation();
         }
     }
@@ -625,7 +605,6 @@ class WeldingSimulator {
             ctx.shadowColor = '#ff3d00';
             ctx.shadowBlur = 20;
         } else {
-            // ZERWANY ŁUK W BIEGU - ciemne zgaszone jeziorko z ostrzegawczą czerwoną poświatą
             ctx.fillStyle = '#442222';
             ctx.shadowColor = '#ff1744';
             ctx.shadowBlur = 12;
