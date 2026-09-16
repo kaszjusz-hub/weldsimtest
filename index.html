@@ -150,18 +150,13 @@
                     </div>
                 </div>
 
-                <!-- Przełącznik Dźwięku 3D (Stereo) -->
-                <div class="form-group toggle-group" style="margin-bottom:16px;">
-                    <label class="toggle-label" for="ws3dToggle">
-                        <span style="display:flex; align-items:center; gap:6px; font-weight:700;">
-                            <span>🎧</span> Dźwięk 3D (Stereo Lewo / Prawo)
-                        </span>
-                        <input type="checkbox" id="ws3dToggle" checked class="toggle-checkbox">
-                        <span class="toggle-switch"></span>
-                    </label>
-                    <p style="font-size:11px; color:#8b94a0; margin-top:4px; text-align:left;">
-                        Przesuwa impulsy akustyczne między lewym a prawym uchem zgodnie z pozycją palnika.
-                    </p>
+                <!-- Przełącznik Dźwięku 3D (Stylizowany tak jak przyciski presetów) -->
+                <div class="form-group" style="text-align:left;">
+                    <label>Panoramowanie przestrzenne audio:</label>
+                    <div class="presets-row">
+                        <button type="button" id="btn3dOn" class="preset-btn active">🎧 Dźwięk 3D (Lewo / Prawo)</button>
+                        <button type="button" id="btn3dOff" class="preset-btn">🔊 Dźwięk Mono (Jednakowy)</button>
+                    </div>
                 </div>
 
                 <div class="form-group" style="text-align:left;">
