@@ -1,7 +1,7 @@
 /**
  * Workshop Audio Assistant (Tryb Warsztatowy pod Przyłbicę)
  * Pozwala kursantowi trenować na prawdziwym stanowisku spawalniczym,
- * słuchając precyzyjnego rytmu w słuchawkach pod maską spawalniczą.
+ * słuchając precyzyjnego, ultra-wyrazistego rytmu w słuchawkach pod maską.
  */
 
 class WorkshopAssistant {
@@ -66,22 +66,31 @@ class WorkshopAssistant {
         });
 
         // Wybór pozycji warsztatowej
-        document.getElementById('wsPosSelect').addEventListener('change', (e) => {
-            this.position = e.target.value;
-        });
+        const posSel = document.getElementById('wsPosSelect');
+        if (posSel) {
+            posSel.addEventListener('change', (e) => {
+                this.position = e.target.value;
+            });
+        }
 
         // Wybór trybu dźwięku
-        document.getElementById('wsSoundSelect').addEventListener('change', (e) => {
-            this.soundMode = e.target.value;
-            if (this.isRunning && this.soundMode === 'arc_beeps') {
-                window.weldingAudio.startArcSound();
-            } else {
-                window.weldingAudio.stopArcSound();
-            }
-        });
+        const soundSel = document.getElementById('wsSoundSelect');
+        if (soundSel) {
+            soundSel.addEventListener('change', (e) => {
+                this.soundMode = e.target.value;
+                if (this.isRunning) {
+                    if (this.soundMode === 'arc_beeps') {
+                        window.weldingAudio.startArcSound();
+                    } else {
+                        window.weldingAudio.stopArcSound();
+                    }
+                }
+            });
+        }
     }
 
     async toggleAssistant() {
+        // Inicjalizacja AudioContext w odpowiedzi na gest użytkownika
         window.weldingAudio.init();
 
         if (this.isRunning) {
@@ -140,48 +149,48 @@ class WorkshopAssistant {
     tick() {
         if (!this.isRunning) return;
 
-        // Obliczenie proporcji czasowych:
-        // W pozycji PF faza zatrzymania na krawędzi trwa 2x dłużej niż przeskok przez środek!
-        // W pozycji PA proporcje są zbliżone.
-        const fullCycleMs = (60 / this.bpm) * 1000; // Czas jednego pełnego cyklu (lewa -> prawa -> lewa)
+        // Czas pełnego cyklu (lewo -> środek -> prawo -> środek)
+        const fullCycleMs = (60 / this.bpm) * 1000;
         let stepDurationMs;
 
         if (this.position === 'PF') {
-            // PF: Krawędź (35% czasu), Środek (15% czasu), Krawędź (35% czasu), Środek (15% czasu)
+            // PF (Pion): Krawędzie (36% czasu), Środek (14% czasu)
             if (this.step === 0 || this.step === 2) {
-                stepDurationMs = fullCycleMs * 0.35;
+                stepDurationMs = fullCycleMs * 0.36;
             } else {
-                stepDurationMs = fullCycleMs * 0.15;
+                stepDurationMs = fullCycleMs * 0.14;
             }
         } else {
-            // PA: Równy podział (25% na każdą z 4 faz)
+            // PA (Podolna): Równe 25% dla każdego z 4 kroków
             stepDurationMs = fullCycleMs * 0.25;
         }
 
-        // Akcja dźwiękowa i wizualna dla bieżącego kroku
         this.clearVisualIndicators();
 
         if (this.step === 0) {
             // Lewa krawędź
             window.weldingAudio.playWorkshopPulse('edge', false);
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge');
             this.highlightVisual(this.visualLeft);
-            this.vibrate([40]);
+            this.vibrate([45]);
         } else if (this.step === 1) {
             // Środek w prawo
             window.weldingAudio.playWorkshopPulse('center');
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
         } else if (this.step === 2) {
             // Prawa krawędź
             window.weldingAudio.playWorkshopPulse('edge', true);
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge');
             this.highlightVisual(this.visualRight);
-            this.vibrate([40]);
+            this.vibrate([45]);
         } else if (this.step === 3) {
             // Środek w lewo
             window.weldingAudio.playWorkshopPulse('center');
+            if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
         }
 
-        // Kolejny krok
         this.step = (this.step + 1) % 4;
 
         this.audioTimeout = setTimeout(() => {
