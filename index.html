@@ -150,6 +150,20 @@
                     </div>
                 </div>
 
+                <!-- Przełącznik Dźwięku 3D (Stereo) -->
+                <div class="form-group toggle-group" style="margin-bottom:16px;">
+                    <label class="toggle-label" for="ws3dToggle">
+                        <span style="display:flex; align-items:center; gap:6px; font-weight:700;">
+                            <span>🎧</span> Dźwięk 3D (Stereo Lewo / Prawo)
+                        </span>
+                        <input type="checkbox" id="ws3dToggle" checked class="toggle-checkbox">
+                        <span class="toggle-switch"></span>
+                    </label>
+                    <p style="font-size:11px; color:#8b94a0; margin-top:4px; text-align:left;">
+                        Przesuwa impulsy akustyczne między lewym a prawym uchem zgodnie z pozycją palnika.
+                    </p>
+                </div>
+
                 <div class="form-group" style="text-align:left;">
                     <label>
                         <span>Tempo zakosów:</span>
@@ -298,11 +312,9 @@
     <!-- Obsługa zakładek i kalkulatora -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Inicjalizacja modułów
             window.weldingSimulator.init();
             window.workshopAssistant.init();
 
-            // Przełączanie zakładek
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabPanes = document.querySelectorAll('.tab-pane');
 
@@ -316,14 +328,12 @@
                     btn.classList.add('active');
                     document.getElementById(targetTab).classList.add('active');
 
-                    // Zatrzymanie asystenta jeśli wychodzimy z zakładki warsztatu
                     if (targetTab !== 'tabWorkshop' && window.workshopAssistant.isRunning) {
                         window.workshopAssistant.stop();
                     }
                 });
             });
 
-            // Logika Kalkulatora Technologicznego
             const matThickness = document.getElementById('matThickness');
             const jointType = document.getElementById('jointType');
             const resWire = document.getElementById('calcResWire');
@@ -371,7 +381,6 @@
                         wireSlider.dispatchEvent(new Event('input'));
                     }
 
-                    // Przełączenie do symulatora
                     document.querySelector('.tab-btn[data-tab="tabSim"]').click();
                 });
             }
