@@ -332,22 +332,22 @@ input[type="range"]::-webkit-slider-thumb {
     to { opacity: 0.4; }
 }
 
-/* KONTENER STATUSU O STAŁEJ WYSOKOŚCI - ELIMINACJA PRZESUWANIA PŁÓTNA (LAYOUT SHIFT) */
+/* BEZWZGLĘDNIE STAŁA WYSOKOŚĆ PASKA STATUSU (WHITE-SPACE: NOWRAP & LINE-HEIGHT LOCK) */
 .status-msg {
     text-align: center;
     font-size: 13px;
     font-weight: 700;
-    padding: 6px 12px;
+    padding: 0 12px;
     border-radius: 8px;
     margin-bottom: 10px;
-    min-height: 44px;
-    max-height: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: 38px;
+    min-height: 38px;
+    max-height: 38px;
+    line-height: 38px;
+    display: block;
+    white-space: nowrap;
     overflow: hidden;
-    line-height: 1.25;
+    text-overflow: ellipsis;
     box-sizing: border-box;
 }
 
