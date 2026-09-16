@@ -58,20 +58,31 @@ class WorkshopAssistant {
         // Presety tempa
         document.querySelectorAll('.preset-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
-                const bpm = parseInt(e.currentTarget.dataset.bpm, 10);
-                this.bpm = bpm;
-                this.bpmSlider.value = bpm;
-                this.bpmVal.innerText = `${bpm} BPM`;
+                // Jeśli kliknięto w przycisk tempa (posiada dataset.bpm)
+                if (e.currentTarget.dataset.bpm) {
+                    const bpm = parseInt(e.currentTarget.dataset.bpm, 10);
+                    this.bpm = bpm;
+                    this.bpmSlider.value = bpm;
+                    this.bpmVal.innerText = `${bpm} BPM`;
+                }
             });
         });
 
-        // Przełącznik Dźwięku 3D (Stereo Lewo/Prawo)
-        const toggle3d = document.getElementById('ws3dToggle');
-        if (toggle3d) {
-            // Ustawienie początkowego stanu
-            window.weldingAudio.set3dMode(toggle3d.checked);
-            toggle3d.addEventListener('change', (e) => {
-                window.weldingAudio.set3dMode(e.target.checked);
+        // Segmentowe przyciski przełączania Dźwięku 3D / Mono
+        const btn3dOn = document.getElementById('btn3dOn');
+        const btn3dOff = document.getElementById('btn3dOff');
+
+        if (btn3dOn && btn3dOff) {
+            btn3dOn.addEventListener('click', () => {
+                window.weldingAudio.set3dMode(true);
+                btn3dOn.classList.add('active');
+                btn3dOff.classList.remove('active');
+            });
+
+            btn3dOff.addEventListener('click', () => {
+                window.weldingAudio.set3dMode(false);
+                btn3dOff.classList.add('active');
+                btn3dOn.classList.remove('active');
             });
         }
 
