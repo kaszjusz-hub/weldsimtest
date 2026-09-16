@@ -1,7 +1,7 @@
 /**
  * Workshop Audio Assistant (Tryb Warsztatowy pod Przyłbicę)
  * Pozwala kursantowi trenować na prawdziwym stanowisku spawalniczym,
- * słuchając precyzyjnego, przestrzennego (STEREO LEWO / PRAWO) rytmu w słuchawkach pod maską.
+ * słuchając precyzyjnego, opcjonalnie przestrzennego (STEREO LEWO / PRAWO / 3D) rytmu w słuchawkach pod maską.
  */
 
 class WorkshopAssistant {
@@ -64,6 +64,16 @@ class WorkshopAssistant {
                 this.bpmVal.innerText = `${bpm} BPM`;
             });
         });
+
+        // Przełącznik Dźwięku 3D (Stereo Lewo/Prawo)
+        const toggle3d = document.getElementById('ws3dToggle');
+        if (toggle3d) {
+            // Ustawienie początkowego stanu
+            window.weldingAudio.set3dMode(toggle3d.checked);
+            toggle3d.addEventListener('change', (e) => {
+                window.weldingAudio.set3dMode(e.target.checked);
+            });
+        }
 
         // Wybór pozycji warsztatowej
         const posSel = document.getElementById('wsPosSelect');
@@ -160,24 +170,24 @@ class WorkshopAssistant {
         this.clearVisualIndicators();
 
         if (this.step === 0) {
-            // Lewa krawędź -> LEWA SŁUCHAWKA 🎧
+            // Lewa krawędź
             window.weldingAudio.playWorkshopPulse('edge', false);
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge', false);
             this.highlightVisual(this.visualLeft);
             this.vibrate([45]);
         } else if (this.step === 1) {
-            // Środek w prawo -> CENTRUM 🎧
+            // Środek w prawo
             window.weldingAudio.playWorkshopPulse('center');
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
         } else if (this.step === 2) {
-            // Prawa krawędź -> PRAWA SŁUCHAWKA 🎧
+            // Prawa krawędź
             window.weldingAudio.playWorkshopPulse('edge', true);
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('edge', true);
             this.highlightVisual(this.visualRight);
             this.vibrate([45]);
         } else if (this.step === 3) {
-            // Środek w lewo -> CENTRUM 🎧
+            // Środek w lewo
             window.weldingAudio.playWorkshopPulse('center');
             if (this.soundMode === 'arc_beeps') window.weldingAudio.modulateArcForStep('center');
             this.highlightVisual(this.visualCenter);
