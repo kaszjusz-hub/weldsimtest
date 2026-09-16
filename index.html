@@ -175,7 +175,7 @@
                     <label for="wsSoundSelect">Profil audio:</label>
                     <select id="wsSoundSelect">
                         <option value="beeps" selected>Ostry metronom (przebija hałas warsztatu)</option>
-                        <option value="arc_beeps">Smażenie łuku + akcenty krawędzi</option>
+                        <option value="arc_beeps">Smażenie łuku MIG/MAG + akcenty metronomu</option>
                     </select>
                 </div>
 
@@ -357,19 +357,24 @@
                 return { wire, t };
             }
 
-            matThickness.addEventListener('change', recalculateTech);
-            jointType.addEventListener('change', recalculateTech);
+            if (matThickness) matThickness.addEventListener('change', recalculateTech);
+            if (jointType) jointType.addEventListener('change', recalculateTech);
             recalculateTech();
 
-            document.getElementById('applyCalcBtn').addEventListener('click', () => {
-                const { wire, t } = recalculateTech();
-                const wireSlider = document.getElementById('wireSlider');
-                wireSlider.value = wire;
-                wireSlider.dispatchEvent(new Event('input'));
+            const applyCalcBtn = document.getElementById('applyCalcBtn');
+            if (applyCalcBtn) {
+                applyCalcBtn.addEventListener('click', () => {
+                    const { wire, t } = recalculateTech();
+                    const wireSlider = document.getElementById('wireSlider');
+                    if (wireSlider) {
+                        wireSlider.value = wire;
+                        wireSlider.dispatchEvent(new Event('input'));
+                    }
 
-                // Przełączenie do symulatora
-                document.querySelector('.tab-btn[data-tab="tabSim"]').click();
-            });
+                    // Przełączenie do symulatora
+                    document.querySelector('.tab-btn[data-tab="tabSim"]').click();
+                });
+            }
         });
     </script>
 </body>
