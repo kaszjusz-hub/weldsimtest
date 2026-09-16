@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WeldMaster - Trenażer Spawania MIG/MAG</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo-container">
+            <span class="logo-icon">⚡</span>
+            <h1>WeldMaster 2D</h1>
+        </div>
+        <p class="subtitle">Interaktywny trenażer rytmu spawania & asystent audio MIG/MAG</p>
+    </header>
+
+    <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="tabSim">
+            <span>🎯</span> Symulator 2D
+        </button>
+        <button class="tab-btn" data-tab="tabWorkshop">
+            <span>🎧</span> Tryb Warsztatowy
+        </button>
+        <button class="tab-btn" data-tab="tabCalc">
+            <span>📐</span> Kalkulator MIG/MAG
+        </button>
+    </div>
+
+    <main>
+        <!-- ZAKŁADKA 1: SYMULATOR 2D -->
+        <section id="tabSim" class="tab-pane active">
+            <!-- Ekran Konfiguracji -->
+            <div id="configScreen" class="card">
+                <h2 class="card-title"><span>⚙️</span> Konfiguracja Treningu</h2>
+
+                <div class="form-group">
+                    <label for="posSelect">Pozycja spawalnicza:</label>
+                    <select id="posSelect">
+                        <option value="PF" selected>PF (Pionowa z dołu do góry) - zalecana</option>
+                        <option value="PA">PA (Podolna) - płaskie równe tempo</option>
+                        <option value="PB">PB (Pachwinowa / pozioma)</option>
+                    </select>
+                </div>
+
+                <div id="posDescription" class="hint-box warning">
+                    Pionowa w górę (PF): Wymaga wyraźnego zatrzymania na krawędziach (eliminacja podtopień) i błyskawicznego przeskoku przez środek (by jeziorko nie spłynęło).
+                </div>
+
+                <div class="form-group">
+                    <label for="patternSelect">Wzór prowadzenia uchwytu:</label>
+                    <select id="patternSelect">
+                        <option value="zigzag" selected>Zygzak (standardowy)</option>
+                        <option value="crescent">Półksiężyce (łuki ku górze)</option>
+                        <option value="triangle">Trójkąt / Jodełka</option>
+                        <option value="stringer">Ścieg prosty (bez zakosów)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="widthSlider">
+                        <span>Docelowa szerokość lica:</span>
+                        <span id="widthVal" class="val-badge">20 mm</span>
+                    </label>
+                    <input type="range" id="widthSlider" min="10" max="35" value="20">
+                </div>
+
+                <div class="form-group">
+                    <label for="wireSlider">
+                        <span>Średnica drutu spawalniczego:</span>
+                        <span id="wireVal" class="val-badge">1.0 mm</span>
+                    </label>
+                    <input type="range" id="wireSlider" min="0.8" max="1.6" step="0.2" value="1.0">
+                </div>
+
+                <!-- Sugerowane parametry technologiczne -->
+                <div class="form-group">
+                    <label>Sugerowane nastawy spawarki:</label>
+                    <div class="rec-grid">
+                        <div class="rec-item">
+                            <div class="rec-label">Prąd</div>
+                            <div id="calcCurrent" class="rec-val">115 A</div>
+                        </div>
+                        <div class="rec-item">
+                            <div class="rec-label">Napięcie</div>
+                            <div id="calcVoltage" class="rec-val">18.5 V</div>
+                        </div>
+                        <div class="rec-item">
+                            <div class="rec-label">Posuw drutu</div>
+                            <div id="calcFeed" class="rec-val">4.9 m/min</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="startSimBtn" class="btn-primary">Rozpocznij Symulację</button>
+            </div>
+
+            <!-- Ekran Samej Symulacji -->
+            <div id="simScreen">
+                <div class="sim-header">
+                    <button id="backToConfigBtn" class="btn-secondary">← Ustawienia</button>
+                    <div class="status-hud" style="margin:0; gap:8px;">
+                        <span id="arcStateBadge" class="badge badge-off">Łuk wygaszony</span>
+                        <span id="accuracyBadge" class="badge badge-active">Precyzja: 100%</span>
+                    </div>
+                </div>
+
+                <div class="sim-controls-bar">
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:700; color:#8b94a0; margin-bottom:4px;">
+                        <span>Tempo prowadzenia:</span>
+                        <span id="speedVal" style="color:#ff9500;">100%</span>
+                    </div>
+                    <input type="range" id="speedSlider" min="30" max="180" value="100">
+                </div>
+
+                <div id="statusText" class="status-msg waiting">
+                    Dotknij żółtego punktu na dole, aby zajarzyć łuk!
+                </div>
+
+                <div class="canvas-container">
+                    <canvas id="weldCanvas" width="400" height="560"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- ZAKŁADKA 2: ASYSTENT WARSZTATOWY (AUDIO POD PRZYŁBICĘ) -->
+        <section id="tabWorkshop" class="tab-pane">
+            <div class="card workshop-card">
+                <h2 class="card-title"><span>🎧</span> Asystent Audio (Do Słuchawek)</h2>
+                <p style="font-size:12px; color:#8b94a0; margin-bottom:16px;">
+                    Schowaj telefon do kieszeni, załóż słuchawkę pod przyłbicę i trzymaj idealne tempo na prawdziwym detalu!
+                </p>
+
+                <div id="wsTimerDisplay" class="timer-large">00:00</div>
+
+                <!-- Wizualny metronom -->
+                <div class="visual-metronome">
+                    <div id="wsVisLeft" class="metronome-node">
+                        <span class="node-label">Lewo</span>
+                        <span style="font-size:10px; color:#c0c6d0;">Hold</span>
+                    </div>
+                    <div id="wsVisCenter" class="metronome-node">
+                        <span class="node-label">Środek</span>
+                        <span style="font-size:10px; color:#c0c6d0;">Przeskok</span>
+                    </div>
+                    <div id="wsVisRight" class="metronome-node">
+                        <span class="node-label">Prawo</span>
+                        <span style="font-size:10px; color:#c0c6d0;">Hold</span>
+                    </div>
+                </div>
+
+                <div class="form-group" style="text-align:left;">
+                    <label>
+                        <span>Tempo zakosów:</span>
+                        <span id="wsBpmVal" class="val-badge">50 BPM</span>
+                    </label>
+                    <input type="range" id="wsBpmSlider" min="25" max="110" value="50">
+                    <div class="presets-row">
+                        <button class="preset-btn" data-bpm="35">35 BPM (Wolne PF)</button>
+                        <button class="preset-btn" data-bpm="50">50 BPM (Standard PF)</button>
+                        <button class="preset-btn" data-bpm="75">75 BPM (Podolna PA)</button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="text-align:left;">
+                    <label for="wsPosSelect">Rytm wg pozycji:</label>
+                    <select id="wsPosSelect">
+                        <option value="PF" selected>PF (Długie krawędzie, szybki środek)</option>
+                        <option value="PA">PA (Równe interwały czasowe)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="text-align:left;">
+                    <label for="wsSoundSelect">Profil audio:</label>
+                    <select id="wsSoundSelect">
+                        <option value="beeps" selected>Ostry metronom (przebija hałas warsztatu)</option>
+                        <option value="arc_beeps">Smażenie łuku + akcenty krawędzi</option>
+                    </select>
+                </div>
+
+                <button id="wsStartBtn" class="ws-start-btn">START - ASYSTENT WARSZTATOWY</button>
+
+                <div id="wsWakeLockBadge" class="wake-badge">
+                    Ekran uśpienie (WakeLock: OFF)
+                </div>
+            </div>
+        </section>
+
+        <!-- ZAKŁADKA 3: KALKULATOR MIG/MAG -->
+        <section id="tabCalc" class="tab-pane">
+            <div class="card">
+                <h2 class="card-title"><span>📐</span> Technologiczny Kalkulator MIG/MAG</h2>
+                <p style="font-size:12px; color:#8b94a0; margin-bottom:16px;">
+                    Dla stali niestopowych (np. S235, S355), metoda 135 z drutem litym.
+                </p>
+
+                <div class="form-group">
+                    <label for="matThickness">Grubość blachy (t):</label>
+                    <select id="matThickness">
+                        <option value="1.5">1.5 mm (Cienka blacha)</option>
+                        <option value="2.0">2.0 mm</option>
+                        <option value="3.0">3.0 mm</option>
+                        <option value="4.0" selected>4.0 mm (Standardowa)</option>
+                        <option value="6.0">6.0 mm</option>
+                        <option value="8.0">8.0 mm</option>
+                        <option value="10.0">10.0 mm (Gruba)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="jointType">Rodzaj złącza:</label>
+                    <select id="jointType">
+                        <option value="fillet" selected>Spoina pachwinowa (złącze teowe)</option>
+                        <option value="butt">Spoina doczołowa (z rowkiem V)</option>
+                        <option value="lap">Spoina zakładkowa</option>
+                    </select>
+                </div>
+
+                <div class="rec-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom:16px;">
+                    <div class="rec-item">
+                        <div class="rec-label">Średnica drutu</div>
+                        <div id="calcResWire" class="rec-val">1.0 mm</div>
+                    </div>
+                    <div class="rec-item">
+                        <div class="rec-label">Prąd spawania</div>
+                        <div id="calcResCurrent" class="rec-val">140 - 160 A</div>
+                    </div>
+                    <div class="rec-item">
+                        <div class="rec-label">Napięcie łuku</div>
+                        <div id="calcResVolt" class="rec-val">19.5 - 21.0 V</div>
+                    </div>
+                    <div class="rec-item">
+                        <div class="rec-label">Posuw drutu</div>
+                        <div id="calcResFeed" class="rec-val">5.5 - 6.5 m/min</div>
+                    </div>
+                    <div class="rec-item">
+                        <div class="rec-label">Gaz osłonowy</div>
+                        <div id="calcResGas" class="rec-val">M21 (Ar + 18% CO2)</div>
+                    </div>
+                    <div class="rec-item">
+                        <div class="rec-label">Przepływ gazu</div>
+                        <div id="calcResGasFlow" class="rec-val">12 - 14 l/min</div>
+                    </div>
+                </div>
+
+                <button id="applyCalcBtn" class="btn-primary">Przenieś do Symulatora</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL RAPORTU KOŃCOWEGO -->
+    <div id="reportModal" class="modal-backdrop">
+        <div class="report-modal">
+            <h3 style="font-size:20px; font-weight:800; color:#ff9500; margin-bottom:6px;">Raport Wykonania Spoiny</h3>
+            <p style="font-size:12px; color:#8b94a0;">Ocena stabilności prowadzenia i pamięci mięśniowej</p>
+
+            <div class="score-circle">
+                <span id="reportScore" class="score-num">85%</span>
+            </div>
+
+            <div id="reportGrade" class="grade-badge grade-b">
+                Spoina klasy B (Znakomita)
+            </div>
+
+            <div class="metrics-box">
+                <div class="metric-line">
+                    <span>Liczba zerwań łuku:</span>
+                    <span id="reportBreaks" class="text-danger">0</span>
+                </div>
+                <div class="metric-line">
+                    <span>Lewa krawędź (hold):</span>
+                    <span id="leftEdgeFeedback"><span class="text-success">Prawidłowy</span></span>
+                </div>
+                <div class="metric-line">
+                    <span>Prawa krawędź (hold):</span>
+                    <span id="rightEdgeFeedback"><span class="text-success">Prawidłowy</span></span>
+                </div>
+            </div>
+
+            <div class="eval-canvas-wrap">
+                <label>Zarejestrowana trajektoria (Niebieski vs Złoty wzorzec):</label>
+                <canvas id="evalCanvas" width="220" height="180"></canvas>
+            </div>
+
+            <div class="modal-actions">
+                <button id="restartBtn" class="btn-primary" style="margin:0; flex:1;">Powtórz</button>
+                <button id="closeReportBtn" class="btn-secondary" style="flex:1;">Ustawienia</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Skrypty modułów -->
+    <script src="audio.js"></script>
+    <script src="simulator.js"></script>
+    <script src="workshop.js"></script>
+
+    <!-- Obsługa zakładek i kalkulatora -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicjalizacja modułów
+            window.weldingSimulator.init();
+            window.workshopAssistant.init();
+
+            // Przełączanie zakładek
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabPanes = document.querySelectorAll('.tab-pane');
+
+            tabButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetTab = btn.dataset.tab;
+
+                    tabButtons.forEach(b => b.classList.remove('active'));
+                    tabPanes.forEach(p => p.classList.remove('active'));
+
+                    btn.classList.add('active');
+                    document.getElementById(targetTab).classList.add('active');
+
+                    // Zatrzymanie asystenta jeśli wychodzimy z zakładki warsztatu
+                    if (targetTab !== 'tabWorkshop' && window.workshopAssistant.isRunning) {
+                        window.workshopAssistant.stop();
+                    }
+                });
+            });
+
+            // Logika Kalkulatora Technologicznego
+            const matThickness = document.getElementById('matThickness');
+            const jointType = document.getElementById('jointType');
+            const resWire = document.getElementById('calcResWire');
+            const resCurrent = document.getElementById('calcResCurrent');
+            const resVolt = document.getElementById('calcResVolt');
+            const resFeed = document.getElementById('calcResFeed');
+            const resGasFlow = document.getElementById('calcResGasFlow');
+
+            function recalculateTech() {
+                const t = parseFloat(matThickness.value);
+                let wire = 0.8, cur = "90 - 110 A", volt = "17.0 - 18.5 V", feed = "5.0 - 6.0 m/min", flow = "10 - 12 l/min";
+
+                if (t <= 1.5) {
+                    wire = 0.8; cur = "70 - 90 A"; volt = "16.0 - 17.5 V"; feed = "4.5 - 5.5 m/min";
+                } else if (t <= 2.5) {
+                    wire = 0.8; cur = "100 - 125 A"; volt = "17.5 - 19.0 V"; feed = "5.5 - 6.8 m/min";
+                } else if (t <= 4.0) {
+                    wire = 1.0; cur = "130 - 165 A"; volt = "19.0 - 21.0 V"; feed = "5.2 - 6.5 m/min"; flow = "12 - 14 l/min";
+                } else if (t <= 6.0) {
+                    wire = 1.0; cur = "170 - 210 A"; volt = "21.5 - 23.5 V"; feed = "6.8 - 8.0 m/min"; flow = "14 - 16 l/min";
+                } else {
+                    wire = 1.2; cur = "220 - 270 A"; volt = "24.0 - 27.0 V"; feed = "5.0 - 6.5 m/min"; flow = "15 - 18 l/min";
+                }
+
+                resWire.innerText = `${wire.toFixed(1)} mm`;
+                resCurrent.innerText = cur;
+                resVolt.innerText = volt;
+                resFeed.innerText = feed;
+                resGasFlow.innerText = flow;
+
+                return { wire, t };
+            }
+
+            matThickness.addEventListener('change', recalculateTech);
+            jointType.addEventListener('change', recalculateTech);
+            recalculateTech();
+
+            document.getElementById('applyCalcBtn').addEventListener('click', () => {
+                const { wire, t } = recalculateTech();
+                const wireSlider = document.getElementById('wireSlider');
+                wireSlider.value = wire;
+                wireSlider.dispatchEvent(new Event('input'));
+
+                // Przełączenie do symulatora
+                document.querySelector('.tab-btn[data-tab="tabSim"]').click();
+            });
+        });
+    </script>
+</body>
+</html>
