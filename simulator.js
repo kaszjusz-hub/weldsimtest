@@ -1,7 +1,7 @@
 /**
  * Simulator Engine dla Treningu Spawania MIG/MAG
  * Obsługuje generowanie trajektorii, specyfikę pozycji (PA, PF, PB),
- * zajarzenie łuku, zerwanie łuku oraz szczegółową analizę spoiny.
+ * zajarzenie łuku, PŁYNNY RUCH BEZ ZATRZYMYWANIA przy zerwaniu łuku oraz szczegółową analizę spoiny.
  */
 
 class WeldingSimulator {
@@ -17,7 +17,8 @@ class WeldingSimulator {
         this.reportModal = null;
 
         // Stan symulacji
-        this.state = 'IDLE'; // IDLE, WAITING_FOR_IGNITION, WELDING, ARC_BROKEN, COMPLETED
+        this.state = 'IDLE'; // IDLE, WAITING_FOR_IGNITION, WELDING, COMPLETED
+        this.isArcActive = false; // Czy łuk w danej chwili się jarzy (czy palec trzyma strefę)
         this.animationId = null;
 
         // Konfiguracja
@@ -52,8 +53,6 @@ class WeldingSimulator {
             leftEdgeTimeRecorded: [],
             rightEdgeTimeRecorded: [],
             currentEdgeTime: 0,
-            centerTransitTimes: [],
-            currentTransitTime: 0,
             userTrail: [],
             idealTrail: []
         };
@@ -87,7 +86,6 @@ class WeldingSimulator {
     }
 
     bindEvents() {
-        // Kontrolki konfiguracji
         document.getElementById('posSelect').addEventListener('change', (e) => {
             this.config.position = e.target.value;
             this.updatePositionHints();
@@ -243,7 +241,7 @@ class WeldingSimulator {
         }
 
         if (this.config.position === 'PF') {
-            cur = Math.round(cur * 0.82); // W pozycji pionowej zmniejszamy prąd
+            cur = Math.round(cur * 0.82);
             volt = (volt * 0.95).toFixed(1);
             feed = (feed * 0.85).toFixed(1);
         }
@@ -265,8 +263,8 @@ class WeldingSimulator {
         this.toleranceRadius = Math.round(this.poolRadius * 1.8);
 
         if (this.config.position === 'PF') {
-            this.baseEdgeHold = 36; // Bardzo długie przytrzymanie boków
-            this.baseCrossSpeed = 6.0; // Szybki skok przez środek
+            this.baseEdgeHold = 36;
+            this.baseCrossSpeed = 6.0;
         } else if (this.config.position === 'PA') {
             this.baseEdgeHold = 10;
             this.baseCrossSpeed = 2.6;
@@ -279,6 +277,7 @@ class WeldingSimulator {
 
         // Reset stanu
         this.state = 'WAITING_FOR_IGNITION';
+        this.isArcActive = false;
         this.currentPointIdx = 0;
         this.targetX = this.points[0].x;
         this.targetY = this.points[0].y;
@@ -293,8 +292,6 @@ class WeldingSimulator {
             leftEdgeTimeRecorded: [],
             rightEdgeTimeRecorded: [],
             currentEdgeTime: 0,
-            centerTransitTimes: [],
-            currentTransitTime: 0,
             userTrail: [],
             idealTrail: []
         };
@@ -311,13 +308,12 @@ class WeldingSimulator {
     generatePath() {
         this.points = [];
         const centerX = this.canvas.width / 2;
-        const widthPx = this.config.weldWidth * 4; // Skalowanie szerokości mm na px
+        const widthPx = this.config.weldWidth * 4;
         let y = this.canvas.height - 50;
         const endY = 60;
         let left = true;
 
         if (this.config.pattern === 'stringer') {
-            // Ścieg prosty
             while (y >= endY) {
                 this.points.push({ x: centerX, y: y, isEdge: false, side: 'center' });
                 y -= 8;
@@ -330,15 +326,12 @@ class WeldingSimulator {
             const side = left ? 'left' : 'right';
 
             if (this.config.pattern === 'crescent') {
-                // Półksiężyce: łuk z wybrzuszeniem ku górze w osi
                 this.points.push({ x: edgeX, y: y, isEdge: true, side: side });
                 this.points.push({ x: centerX, y: y - 10, isEdge: false, side: 'center' });
             } else if (this.config.pattern === 'triangle') {
-                // Jodełka / Trójkąt
                 this.points.push({ x: edgeX, y: y, isEdge: true, side: side });
                 this.points.push({ x: centerX, y: y - 16, isEdge: false, side: 'center' });
             } else {
-                // Standardowy zygzak
                 this.points.push({ x: edgeX, y: y, isEdge: true, side: side });
             }
 
@@ -352,21 +345,12 @@ class WeldingSimulator {
 
         if (this.state === 'WAITING_FOR_IGNITION') {
             if (dist <= this.toleranceRadius * 1.5) {
-                // Zajarzenie łuku
+                // Pierwsze zajarzenie łuku
                 this.state = 'WELDING';
+                this.isArcActive = true;
                 window.weldingAudio.playIgnite();
                 window.weldingAudio.startArcSound();
                 this.updateHUD("Spawaj! Prowadź rękę w rytmie metronomu", "active");
-                this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
-                this.arcStateBadge.className = "badge badge-active";
-            }
-        } else if (this.state === 'ARC_BROKEN') {
-            if (dist <= this.toleranceRadius * 1.5) {
-                // Ponowne zajarzenie po zerwaniu
-                this.state = 'WELDING';
-                window.weldingAudio.playIgnite();
-                window.weldingAudio.startArcSound();
-                this.updateHUD("Łuk wznowiony! Kontynuuj spawanie", "active");
                 this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
                 this.arcStateBadge.className = "badge badge-active";
             }
@@ -374,22 +358,32 @@ class WeldingSimulator {
     }
 
     handlePointerUp() {
-        if (this.state === 'WELDING') {
-            // Zerwanie łuku przez oderwanie dłoni!
-            this.triggerArcBreak("Oderwano palec od ekranu!");
+        // Po zajarzeniu oderwanie palca NIE zatrzymuje symulacji, ale gasi łuk
+        if (this.state === 'WELDING' && this.isArcActive) {
+            this.setArcActive(false, "Oderwano palec!");
         }
     }
 
-    triggerArcBreak(reason) {
-        if (this.state !== 'WELDING') return;
-        this.state = 'ARC_BROKEN';
-        this.stats.arcBreaks++;
-        window.weldingAudio.playArcBreak();
-        window.weldingAudio.stopArcSound();
+    setArcActive(active, reason = "") {
+        if (this.isArcActive === active) return;
+        this.isArcActive = active;
 
-        this.updateHUD(`ZERWANIE ŁUKU! (${reason}) Przyłóż palec do jeziorka`, "error");
-        this.arcStateBadge.innerText = "ŁUK ZERWANY!";
-        this.arcStateBadge.className = "badge badge-danger";
+        if (active) {
+            // Wznowienie łuku w biegu
+            window.weldingAudio.playIgnite();
+            window.weldingAudio.startArcSound();
+            this.updateHUD("Łuk wznowiony! Spawaj dalej", "active");
+            this.arcStateBadge.innerText = "ŁUK ZAJARZONY";
+            this.arcStateBadge.className = "badge badge-active";
+        } else {
+            // Zerwanie łuku w biegu
+            this.stats.arcBreaks++;
+            window.weldingAudio.playArcBreak();
+            window.weldingAudio.stopArcSound();
+            this.updateHUD(`ZERWANIE ŁUKU! (${reason}) Przyłóż palec do ruchomego jeziorka`, "error");
+            this.arcStateBadge.innerText = "ŁUK ZERWANY!";
+            this.arcStateBadge.className = "badge badge-danger";
+        }
     }
 
     updateHUD(msg, type) {
@@ -400,6 +394,7 @@ class WeldingSimulator {
 
     stopSimulation() {
         this.state = 'IDLE';
+        this.isArcActive = false;
         if (this.animationId) cancelAnimationFrame(this.animationId);
         window.weldingAudio.stopArcSound();
     }
@@ -417,47 +412,54 @@ class WeldingSimulator {
     }
 
     updateWeldingLogic() {
-        // Sprawdzenie odległości palca od jeziorka
+        // Obliczenie czy kursor trzyma strefę łuku
         const dist = Math.hypot(this.userPos.x - this.targetX, this.userPos.y - this.targetY);
-        const isOnTarget = dist <= this.toleranceRadius;
+        const isInTolerance = (this.isPointerDown && dist <= this.toleranceRadius);
 
-        this.stats.totalFrames++;
-        if (isOnTarget) {
-            this.stats.onTargetFrames++;
-            window.weldingAudio.setArcQuality(true);
+        // Automatyczne zajarzenie / zerwanie w biegu w zależności od pozycji palca
+        if (isInTolerance) {
+            if (!this.isArcActive) {
+                this.setArcActive(true);
+            }
         } else {
-            window.weldingAudio.setArcQuality(false);
-            // Jeśli użytkownik odjechał zbyt daleko
-            if (dist > this.toleranceRadius * 2.6) {
-                this.triggerArcBreak("Zbyt duże zboczenie z jeziorka!");
-                return;
+            if (this.isArcActive) {
+                const reason = !this.isPointerDown ? "Oderwano palec" : "Zeszło z toru";
+                this.setArcActive(false, reason);
             }
         }
 
-        // Zapis śladu
+        // Zliczanie klatek (zawsze liczy całkowity czas, aby tempo nie ulegało zaburzeniu)
+        this.stats.totalFrames++;
+
+        if (this.isArcActive && isInTolerance) {
+            this.stats.onTargetFrames++;
+            window.weldingAudio.setArcQuality(true);
+        } else if (this.isArcActive) {
+            window.weldingAudio.setArcQuality(false);
+        }
+
+        // Zapis trajektorii
         this.stats.userTrail.push({
-            x: this.userPos.x,
-            y: this.userPos.y,
-            accurate: isOnTarget
+            x: this.isPointerDown ? this.userPos.x : -100,
+            y: this.isPointerDown ? this.userPos.y : -100,
+            accurate: this.isArcActive && isInTolerance
         });
         this.stats.idealTrail.push({
             x: this.targetX,
             y: this.targetY
         });
 
-        // Aktualizacja wskaźnika precyzji na żywo
+        // Wskaźnik precyzji na żywo
         const acc = Math.round((this.stats.onTargetFrames / this.stats.totalFrames) * 100);
         this.accuracyBadge.innerText = `Precyzja: ${acc}%`;
 
-        // Logika posuwu
+        // PŁYNNY POSUW JEZIORKA (Brak zatrzymywania! Ruch trwa nieprzerwanie)
         const currentP = this.points[this.currentPointIdx];
 
         if (this.edgeHoldTimer > 0) {
-            // Faza zatrzymania na krawędzi
             this.edgeHoldTimer -= 1 * this.config.speedMultiplier;
             this.stats.currentEdgeTime++;
 
-            // Ostatnia chwila na krawędzi -> zapisz czas
             if (this.edgeHoldTimer <= 0) {
                 if (currentP.side === 'left') {
                     this.stats.leftEdgeTimeRecorded.push(this.stats.currentEdgeTime);
@@ -467,16 +469,13 @@ class WeldingSimulator {
                 this.stats.currentEdgeTime = 0;
             }
         } else if (this.currentPointIdx < this.points.length - 1) {
-            // Faza ruchu do kolejnego punktu
             const nextP = this.points[this.currentPointIdx + 1];
             const dx = nextP.x - this.targetX;
             const dy = nextP.y - this.targetY;
             const distance = Math.hypot(dx, dy);
 
-            // Ruch zależy od prędkości pozycji
             let currentMoveSpeed = this.baseCrossSpeed;
             if (this.config.position === 'PF' && !nextP.isEdge) {
-                // Przejście przez środek w PF jest ekspresowe
                 currentMoveSpeed *= 1.4;
             }
             const moveAmount = currentMoveSpeed * this.config.speedMultiplier;
@@ -497,13 +496,14 @@ class WeldingSimulator {
                 this.targetY += (dy / distance) * moveAmount;
             }
         } else {
-            // Dotarto do końca ścieżki!
+            // Koniec ścieżki - symulacja ukończona nieprzerwanie!
             this.completeSimulation();
         }
     }
 
     completeSimulation() {
         this.state = 'COMPLETED';
+        this.isArcActive = false;
         window.weldingAudio.stopArcSound();
         this.updateHUD("Trening zakończony pomyślnie!", "active");
         this.arcStateBadge.innerText = "SPOINA UKOŃCZONA";
@@ -520,11 +520,9 @@ class WeldingSimulator {
         const height = this.canvas.height;
         const centerX = width / 2;
 
-        // Tło blach spawalniczych
         ctx.fillStyle = '#181a1f';
         ctx.fillRect(0, 0, width, height);
 
-        // Rysowanie rowka spawalniczego (V-groove)
         const grooveWidth = (this.config.weldWidth * 4) + 10;
         const grad = ctx.createLinearGradient(centerX - grooveWidth / 2, 0, centerX + grooveWidth / 2, 0);
         grad.addColorStop(0, '#282b30');
@@ -533,7 +531,6 @@ class WeldingSimulator {
         ctx.fillStyle = grad;
         ctx.fillRect(centerX - grooveWidth / 2, 0, grooveWidth, height);
 
-        // Oś spoiny (przerywana linia traserska)
         ctx.beginPath();
         ctx.moveTo(centerX, 0);
         ctx.lineTo(centerX, height);
@@ -543,12 +540,10 @@ class WeldingSimulator {
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Rysowanie krawędzi zajarzenia / fazowania
         ctx.strokeStyle = '#383d47';
         ctx.lineWidth = 2;
         ctx.strokeRect(centerX - grooveWidth / 2, 0, grooveWidth, height);
 
-        // Rysowanie planowanej ścieżki
         if (this.points.length > 1) {
             ctx.beginPath();
             ctx.moveTo(this.points[0].x, this.points[0].y);
@@ -566,7 +561,6 @@ class WeldingSimulator {
             ctx.stroke();
         }
 
-        // Rysowanie zastygającego ściegu za jeziorkiem (wirtualna spoina)
         if (this.stats.idealTrail.length > 2) {
             ctx.beginPath();
             ctx.moveTo(this.stats.idealTrail[0].x, this.stats.idealTrail[0].y);
@@ -579,7 +573,6 @@ class WeldingSimulator {
             ctx.lineJoin = 'round';
             ctx.stroke();
 
-            // Łuski spawalnicze
             ctx.strokeStyle = '#4d535e';
             ctx.lineWidth = 1;
             for (let i = 0; i < this.stats.idealTrail.length; i += 6) {
@@ -590,12 +583,10 @@ class WeldingSimulator {
             }
         }
 
-        // Rysowanie Jeziorka Spawalniczego (Target)
-        const isIgnited = (this.state === 'WELDING');
         const isWaiting = (this.state === 'WAITING_FOR_IGNITION');
+        const isArcOn = this.isArcActive;
 
-        // Poświata łuku
-        if (isIgnited) {
+        if (isArcOn) {
             const glowGrad = ctx.createRadialGradient(
                 this.targetX, this.targetY, 2,
                 this.targetX, this.targetY, this.poolRadius * 3.5
@@ -609,7 +600,6 @@ class WeldingSimulator {
             ctx.arc(this.targetX, this.targetY, this.poolRadius * 3.5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Iskry odpryskowe
             for (let s = 0; s < 3; s++) {
                 const sparkAngle = Math.random() * Math.PI * 2;
                 const sparkDist = this.poolRadius + Math.random() * 25;
@@ -622,37 +612,35 @@ class WeldingSimulator {
             }
         }
 
-        // Rdzeń jeziorka
         ctx.beginPath();
         ctx.arc(this.targetX, this.targetY, this.poolRadius, 0, Math.PI * 2);
         if (isWaiting) {
-            // Pulsujący punkt startowy
             const pulse = 1 + 0.15 * Math.sin(Date.now() / 150);
             ctx.arc(this.targetX, this.targetY, this.poolRadius * pulse, 0, Math.PI * 2);
             ctx.fillStyle = '#ffea00';
             ctx.shadowColor = '#ffea00';
             ctx.shadowBlur = 18;
-        } else if (isIgnited) {
+        } else if (isArcOn) {
             ctx.fillStyle = '#ff9100';
             ctx.shadowColor = '#ff3d00';
             ctx.shadowBlur = 20;
         } else {
-            ctx.fillStyle = '#555';
-            ctx.shadowBlur = 0;
+            // ZERWANY ŁUK W BIEGU - ciemne zgaszone jeziorko z ostrzegawczą czerwoną poświatą
+            ctx.fillStyle = '#442222';
+            ctx.shadowColor = '#ff1744';
+            ctx.shadowBlur = 12;
         }
         ctx.fill();
-        ctx.shadowBlur = 0; // reset
+        ctx.shadowBlur = 0;
 
-        // Tolerancja obramowania
         ctx.beginPath();
         ctx.arc(this.targetX, this.targetY, this.toleranceRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = isIgnited ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 234, 0, 0.5)';
+        ctx.strokeStyle = isArcOn ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255, 23, 68, 0.6)';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([4, 4]);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Kursor użytkownika (palec/uchwyt)
         if (this.isPointerDown && this.userPos.x > 0) {
             const dist = Math.hypot(this.userPos.x - this.targetX, this.userPos.y - this.targetY);
             const isGood = dist <= this.toleranceRadius;
@@ -665,7 +653,6 @@ class WeldingSimulator {
             ctx.fill();
             ctx.shadowBlur = 0;
 
-            // Linia łącząca kursor z jeziorkiem przy odchyleniu
             if (!isGood) {
                 ctx.beginPath();
                 ctx.moveTo(this.userPos.x, this.userPos.y);
@@ -684,13 +671,11 @@ class WeldingSimulator {
             ? (this.stats.onTargetFrames / this.stats.totalFrames) * 100
             : 0;
 
-        // Kara za zerwania łuku (-7% za każde zerwanie)
-        const finalScore = Math.max(0, Math.round(rawAcc - (this.stats.arcBreaks * 7)));
+        const finalScore = Math.max(0, Math.round(rawAcc - (this.stats.arcBreaks * 5)));
 
         document.getElementById('reportScore').innerText = `${finalScore}%`;
         document.getElementById('reportBreaks').innerText = `${this.stats.arcBreaks}`;
 
-        // Ocena słowna
         const badge = document.getElementById('reportGrade');
         if (finalScore >= 85) {
             badge.innerText = "Spoina klasy B (Znakomita)";
@@ -703,7 +688,6 @@ class WeldingSimulator {
             badge.className = "grade-badge grade-d";
         }
 
-        // Analiza czasu przytrzymania krawędzi
         const avgLeft = this.getAverage(this.stats.leftEdgeTimeRecorded);
         const avgRight = this.getAverage(this.stats.rightEdgeTimeRecorded);
         const targetHold = this.baseEdgeHold / this.config.speedMultiplier;
@@ -728,9 +712,7 @@ class WeldingSimulator {
             rightFeedback.innerHTML = "<span class='text-success'>Optymalny.</span>";
         }
 
-        // Rysowanie miniaturki trajektorii w raporcie
         this.renderEvaluationCanvas();
-
         this.reportModal.classList.add('active');
     }
 
@@ -748,11 +730,9 @@ class WeldingSimulator {
         ctx.fillStyle = '#1a1c22';
         ctx.fillRect(0, 0, w, h);
 
-        // Skalowanie współrzędnych z głównego canvasa
         const scaleX = w / this.canvas.width;
         const scaleY = h / this.canvas.height;
 
-        // Oś spoiny
         ctx.beginPath();
         ctx.moveTo(w / 2, 0);
         ctx.lineTo(w / 2, h);
@@ -760,7 +740,6 @@ class WeldingSimulator {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Ścieżka idealna (złota)
         if (this.stats.idealTrail.length > 1) {
             ctx.beginPath();
             ctx.moveTo(this.stats.idealTrail[0].x * scaleX, this.stats.idealTrail[0].y * scaleY);
@@ -772,11 +751,12 @@ class WeldingSimulator {
             ctx.stroke();
         }
 
-        // Ścieżka użytkownika (zielona gdy poprawna, czerwona gdy odchyłka)
         for (let i = 0; i < this.stats.userTrail.length; i++) {
             const pt = this.stats.userTrail[i];
-            ctx.fillStyle = pt.accurate ? 'rgba(0, 229, 255, 0.6)' : 'rgba(255, 23, 68, 0.8)';
-            ctx.fillRect(pt.x * scaleX, pt.y * scaleY, 2, 2);
+            if (pt.x > 0) {
+                ctx.fillStyle = pt.accurate ? 'rgba(0, 229, 255, 0.6)' : 'rgba(255, 23, 68, 0.8)';
+                ctx.fillRect(pt.x * scaleX, pt.y * scaleY, 2, 2);
+            }
         }
     }
 }
